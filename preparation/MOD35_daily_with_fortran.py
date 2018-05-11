@@ -57,9 +57,9 @@ def times_gen(itype):
 
 
 
-mod03 = '/Users/yizhe/MOD03.A2015001.006.h5'
-mod35 = '/Users/yizhe/MOD35_L2.A2015001.061.h5'
-output_folder = '/Users/yizhe'
+mod03 = '/u/sciteam/smzyz/scratch/data/MODIS/MOD03_daily/2015/MOD03.A2015001.006.h5'#'/Users/yizhe/MOD03.A2015001.006.h5'
+mod35 = '/u/sciteam/smzyz/scratch/data/MODIS/MOD35_daily/2015/MOD35_L2.A2015001.061.h5'#'/Users/yizhe/MOD35_L2.A2015001.061.h5'
+output_folder = '/u/sciteam/smzyz'
 
 
 def main(mod35, mod03, output_folder):
@@ -128,7 +128,7 @@ def main(mod35, mod03, output_folder):
             continue
             
         cld = mod35['{}/Cloud_Mask'.format(itime)][:, :, :2]
-        np.place(cld[:, :, 1], cld[:, :, 1]==1, 0)
+        np.place(cld[:, :, 1], cld[:, :, 1]==1, 3)
         np.place(cld[:, :, 1], cld[:, :, 1]==2, 3)
         
         
@@ -154,3 +154,7 @@ def main(mod35, mod03, output_folder):
     """
     save_data_hdf5(daily_h5f_out, '/cloud_sum', daily_cld)
     save_data_hdf5(daily_h5f_out, '/total_sum', daily_tot)
+
+
+
+main(mod35, mod03, output_folder)
