@@ -1,74 +1,53 @@
 
 
 
-"""
-LOG: 2018.05.11
-This script is used for downloading large-scale MOD35 data, which can be modified to download any other MODIS data.
-It uses urllib2 and shutil to set up the download pipline and signal to watch the download process. It is a localized version of
-the LAADS DAAC code: https://ladsweb.modaps.eosdis.nasa.gov/tools-and-services/data-download-scripts/
-
-
-One main issue remaining is that it is not clear how many download connections can be set simultantaneously. Additionally, downloaded files
-have not been checked sizes, which is important and should be implemented in the future.
-"""
-
-
-
-
-
-from my_module import np, os, tqdm, sys
+from my_module import np, os, tqdm, sys, time
 import csv
 import shutil
 import ssl
 import urllib2
-import mpi4py.MPI as MPI
 import signal
 
 
 
-# Don't know whether it is needed.
+def signal_handler(signum, frame):
+    raise Exception("Timed out!")
+
+
 USERAGENT = 'tis/download.py_1.0--' + sys.version.replace('\n','').replace('\r','')
 
 
 
-# Raises exception when download got stucked.
-def signal_handler(signum, frame):
-    raise Exception("Timed out!")
-
-    
-    
-# Main function of download one file.
-# Thit function actually could raise several kinds of errors, including:
-# urllib2.HTTPError
-# urllib2.URLError
-# OutOfTime error defined by signal_handler.
 def url_retrieve(src, dst):
+    """
+    Return 0 if an error occur otherwise Return 1.
+    """
+    
     url = src
     headers = { 'user-agent' : USERAGENT }
     headers['Authorization'] = 'Bearer ' + "59451810-53C9-11E8-9F28-C61EAE849760"
     CTX = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
     
     
-    signal.signal(signal.SIGALRM, signal_handler)
-    signal.alarm(120)   # 120 seconds
+    #signal.signal(signal.SIGALRM, signal_handler)
+    #signal.alarm(60)   # Ten seconds
+
+    try:
+        fh = urllib2.urlopen(urllib2.Request(url, headers=headers), context=CTX)
+        shutil.copyfileobj(fh, dst)
+    except urllib2.HTTPError as e:
+        print '>> HTTPError: {}'.format(url)
+    except urllib2.URLError as e:
+        print '>> URLError: {}'.format(url)
 
     
-    fh = urllib2.urlopen(urllib2.Request(url, headers=headers), context=CTX)
-    shutil.copyfileobj(fh, dst)
-    #except urllib2.HTTPError as e:
-    #    print '>> HTTPError: {}'.format(url)
-    #except urllib2.URLError as e:
-    #    print '>> URLError: {}'.format(url)
-
-    
 
 
-# Main function of download all granules within a particular day.
 def main(iyr, iday):
     iday = str(iday).zfill(3)
     
     # Set up download folder (dst_parent_folder)
-    dst_parent_folder = "/u/sciteam/smzyz/scratch/data/MODIS/MOD35/{}" .format(iyr)
+    dst_parent_folder = "/u/sciteam/smzyz/scratch/data/MODIS/MOD35/{}".format(iyr) #"/u/sciteam/smzyz/scratch/data/MODIS/MOD35/{}".format(iyr)
     dst_daily_folder = os.path.join(dst_parent_folder, iday)
     try:
         # print ">> log: {}".format(dst_daily_folder)
@@ -87,20 +66,31 @@ def main(iyr, iday):
     #          dst: /u/sciteam/smzyz/scratch/data/MODIS/MOD35/2000/300.csv
     src_csv_file = "{}/{}.csv".format(src_parent_folder, iday)
     dst_csv_file = "{}/{}.csv".format(dst_parent_folder, iday)
-    try:
-        with open(dst_csv_file, 'w+b') as out:
-            url_retrieve(src_csv_file, out)
-    except Exception as err:
-        print ">> Err: cannot download {}, move on to next day.".format(src_csv)
-        return
+    with open(dst_csv_file, 'w+b') as out:
+        url_retrieve(src_csv_file, out)
     
-
+    
+    
     # 2) Read csv file and generate a download file list by cross-referencing existed MOD35 files
+    files_new = []
     files_server = [ f['name'] for f in csv.DictReader(open(dst_csv_file), skipinitialspace=True) ]
-    # sizes_server = [ f['size'] for f in csv.DictReader(open(dst_csv_file), skipinitialspace=True) ]
     files_local = os.listdir(dst_daily_folder)
-    # sizes_local = [os.path.getsize(os.path.join(dst_daily_folder, ifile)) for ifile in files_local]
-    files_new = [ifile for ifile in files_server if ifile not in files_local]
+    sizes_server = [ f['size'] for f in csv.DictReader(open(dst_csv_file), skipinitialspace=True) ]
+    sizes_local = [os.path.getsize(os.path.join(dst_daily_folder, ifile)) for ifile in files_local]
+    
+    for ifile, isize in zip(files_server, sizes_server):
+        if (ifile in files_local):
+            # Check file size
+            idx = files_local.index(ifile)
+            if int(sizes_local[idx]) == int(isize):
+                continue
+            else:
+                # print isize, sizes_local[idx] # for debug
+                files_new.append(ifile)
+        else:
+            files_new.append(ifile)
+
+
 
     if len(files_new) == 0:
         return
@@ -111,18 +101,15 @@ def main(iyr, iday):
     
         # 3) Download
         print ">> Download: {}: {} files".format(dst_daily_folder, len(files_new))
-        for i in tqdm(range(len(src_file_list))):
+        #for i in tqdm(range(len(src_file_list))):  # for debug
+        for i in range(len(src_file_list)):
             isrc = src_file_list[i]
             idst = dst_file_list[i]
-            try:
-                with open(idst, 'w+b') as out:
-                    url_retrieve(isrc, out)
-            except Exception as err:
-                print ">> Err: cannot download {}, move on to next granule.".format(isrc)
-                continue
-           
-
-
+            with open(idst, 'w+b') as out:
+                url_retrieve(isrc, out)
+            
+            
+            
 def times_gen(itype):
     """
     Generate times for processing, itype could be 1 or 2.
@@ -131,7 +118,7 @@ def times_gen(itype):
     """
     times = []
     if itype == 1:
-        for iyr in range(2000, 2001):
+        for iyr in range(2013, 2014):
             for iday in range(1, 367):
                 tmp = "{}{}".format(iyr, str(iday).zfill(3))
                 times.append(tmp)
@@ -146,7 +133,10 @@ def times_gen(itype):
 
 
 
+
+
 if __name__ == "__main__":
+    import mpi4py.MPI as MPI
     
     # MPI initialization
     comm = MPI.COMM_WORLD
@@ -161,13 +151,10 @@ if __name__ == "__main__":
     times = times_gen(1)[:]
     
     for idd in range(0, len(times), NUM_CORES):
-        itime = times[idd+comm_rank]
         
         try:
+            itime = times[idd+comm_rank]
             main(int(itime[:4]), int(itime[4:]))
         except Exception as err:
             print ">> err: {}".format(err)
             continue
-    
-
-    

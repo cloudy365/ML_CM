@@ -1,7 +1,6 @@
 
 
 from my_module import np, os, h5py, tqdm
-np.warnings.filterwarnings("ignore")
 from my_module.data.comm import save_data_hdf5
 from sort_mod35 import test
 
@@ -55,13 +54,6 @@ def times_gen(itype):
 
 
 
-
-
-mod03 = '/u/sciteam/smzyz/scratch/data/MODIS/MOD03_daily/2015/MOD03.A2015001.006.h5'#'/Users/yizhe/MOD03.A2015001.006.h5'
-mod35 = '/u/sciteam/smzyz/scratch/data/MODIS/MOD35_daily/2015/MOD35_L2.A2015001.061.h5'#'/Users/yizhe/MOD35_L2.A2015001.061.h5'
-output_folder = '/u/sciteam/smzyz'
-
-
 def main(mod35, mod03, output_folder):
     """
     This is the main function, wrapping everything together so that user just need to specify the paths of 
@@ -79,7 +71,7 @@ def main(mod35, mod03, output_folder):
     NUM_POINTS = 1 / SPATIAL_RESOLUTION
     NUM_LATS = int(180 / SPATIAL_RESOLUTION)
     NUM_LONS = int(360 / SPATIAL_RESOLUTION)
-    VZA_MAX = 40
+    VZA_MAX = 18
     
     
     # Initialize organized MOD02/03 data interfaces
@@ -104,7 +96,7 @@ def main(mod35, mod03, output_folder):
     """
     # The following part sorts the radiances into the corresponding lat/lon bins
     times = times_gen(2)[:]
-    for i in tqdm(range(len(times))):
+    for i in range(len(times)):
     # for i in range(29):
         itime = times[i]
         try:
@@ -157,4 +149,9 @@ def main(mod35, mod03, output_folder):
 
 
 
-main(mod35, mod03, output_folder)
+
+if __name__ == '__main__':
+    mod03 = '/u/sciteam/smzyz/scratch/data/MODIS/MOD03_daily/2015/MOD03.A2015001.006.h5'#'/Users/yizhe/MOD03.A2015001.006.h5'
+    mod35 = '/u/sciteam/smzyz/scratch/data/MODIS/MOD35_daily/2015/MOD35_L2.A2015001.061.h5'#'/Users/yizhe/MOD35_L2.A2015001.061.h5'
+    output_folder = '/u/sciteam/smzyz'
+    main(mod35, mod03, output_folder)
